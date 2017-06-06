@@ -1,8 +1,0 @@
-coverage
-flake8
-pre-commit
-pylint<1.4
-pytest
-setuptools
-sphinx_rtd_theme
-tox<2.0

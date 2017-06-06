@@ -1,27 +1,53 @@
-.PHONY: all production test docs clean
+docker-hub-repo = miraco/elastalert
+docker-hub-repo-version = $(shell cat .docker-repo-version)
+docker-app = elastalert.mira
+docker-network = main
 
-all: production
 
-production:
-	@true
+docker-network:
+	make docker-build
+ifeq ($(shell docker network inspect $(docker-network) 2> /dev/null | sed -n 1p), [])
+	docker network create $(docker-network)
+endif
 
-docs:
-	tox -e docs
 
-dev: $(LOCAL_CONFIG_DIR) $(LOGS_DIR) install-hooks
+docker-clean:
+ifneq ($(shell docker ps -a -f name=$(docker-app) | sed -n 2p),)
+	docker stop $(docker-app)
+	docker rm $(docker-app)
+endif
 
-install-hooks:
-	pre-commit install -f --install-hooks
+docker-build:
+	docker build -t $(docker-hub-repo):$(docker-hub-repo-version) .
 
-test:
-	tox
+docker-push:
+	make docker-build
+	docker build -t $(docker-hub-repo):latest .
+	docker push $(docker-hub-repo):$(docker-hub-repo-version)
+	docker push $(docker-hub-repo):latest
 
-test-docker:
-	docker-compose --project-name elastalert build tox
-	docker-compose --project-name elastalert run tox
+docker-run:
+	make docker-network
+	make docker-build
+	make docker-clean
+	docker run --name $(docker-app) -d $(docker-hub-repo):$(docker-hub-repo-version)
 
-clean:
-	make -C docs clean
-	find . -name '*.pyc' -delete
-	find . -name '__pycache__' -delete
-	rm -rf virtualenv_run .tox .coverage *.egg-info build
+docker-logs:
+	make docker-network
+	make docker-build
+	make docker-clean
+	docker run \
+		--name $(docker-app) \
+		--network $(docker-network) \
+		-e ELASTICSEARCH_HOST=elasticsearch-master-0.mira \
+		-e ELASTICSEARCH_PORT=9200 \
+		-e RUN_EVERY_MINUTES=1 \
+		-e RULES_TYPE=api \
+		-e RULES_API_HOST=registry-api.mira \
+		-e RULES_API_PORT=9092 \
+		-e RULES_API_PATH="apps/tester/configs" \
+		$(docker-hub-repo):$(docker-hub-repo-version)
+
+docker-bash:
+	make docker-run
+	docker exec -ti $(docker-app) /bin/bash

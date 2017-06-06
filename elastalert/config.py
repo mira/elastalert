@@ -24,11 +24,19 @@ from util import ts_to_dt_with_format
 from util import unix_to_dt
 from util import unixms_to_dt
 
+from mira.protocols.http import HttpConnection
+
+
 # schema for rule yaml
-rule_schema = jsonschema.Draft4Validator(yaml.load(open(os.path.join(os.path.dirname(__file__), 'schema.yaml'))))
+rule_schema = jsonschema.Draft4Validator(
+    yaml.load(open(os.path.join(os.path.dirname(__file__), 'schema.yaml')))
+)
 
 # Required global (config.yaml) and local (rule.yaml)  configuration options
-required_globals = frozenset(['run_every', 'rules_folder', 'es_host', 'es_port', 'writeback_index', 'buffer_time'])
+required_globals = frozenset([
+    'run_every', 'rules_folder', 'es_host', 'es_port', 
+    'writeback_index', 'buffer_time'
+])
 required_locals = frozenset(['alert', 'type', 'name', 'index'])
 
 # Settings that can be derived from ENV variables
@@ -73,8 +81,11 @@ alerts_mapping = {
     'servicenow': alerts.ServiceNowAlerter,
     'simple': alerts.SimplePostAlerter
 }
-# A partial ordering of alert types. Relative order will be preserved in the resulting alerts list
-# For example, jira goes before email so the ticket # will be added to the resulting email.
+'''
+A partial ordering of alert types. Relative order will be preserved in the 
+resulting alerts list. For example, jira goes before email so the ticket will 
+be added to the resulting email.
+'''
 alerts_order = {
     'jira': 0,
     'email': 1
@@ -89,57 +100,28 @@ def get_module(module_name):
     Returns object or raises EAException on error. """
     try:
         module_path, module_class = module_name.rsplit('.', 1)
-        base_module = __import__(module_path, globals(), locals(), [module_class])
+        base_module = __import__(
+            module_path, globals(), locals(), [module_class]
+        )
         module = getattr(base_module, module_class)
     except (ImportError, AttributeError, ValueError) as e:
         raise EAException("Could not import module %s: %s" % (module_name, e)), None, sys.exc_info()[2]
     return module
 
 
-def load_configuration(filename, conf, args=None):
+def load_configuration(key, rule, conf, args=None):
     """ Load a yaml rule file and fill in the relevant fields with objects.
 
     :param filename: The name of a rule configuration file.
     :param conf: The global configuration dictionary, used for populating defaults.
     :return: The rule configuration, a dictionary.
     """
-    rule = load_rule_yaml(filename)
-    load_options(rule, conf, filename, args)
+    load_options(rule, conf, key, args)
     load_modules(rule, args)
     return rule
 
 
-def load_rule_yaml(filename):
-    rule = {
-        'rule_file': filename,
-    }
-
-    while True:
-        try:
-            loaded = yaml_loader(filename)
-        except yaml.scanner.ScannerError as e:
-            raise EAException('Could not parse file %s: %s' % (filename, e))
-
-        # Special case for merging filters - if both files specify a filter merge (AND) them
-        if 'filter' in rule and 'filter' in loaded:
-            rule['filter'] = loaded['filter'] + rule['filter']
-
-        loaded.update(rule)
-        rule = loaded
-        if 'import' in rule:
-            # Find the path of the next file.
-            if os.path.isabs(rule['import']):
-                filename = rule['import']
-            else:
-                filename = os.path.join(os.path.dirname(filename), rule['import'])
-            del(rule['import'])  # or we could go on forever!
-        else:
-            break
-
-    return rule
-
-
-def load_options(rule, conf, filename, args=None):
+def load_options(rule, conf, key, args=None):
     """ Converts time objects, sets defaults, and validates some settings.
 
     :param rule: A dictionary of parsed YAML from a rule config file.
@@ -149,7 +131,7 @@ def load_options(rule, conf, filename, args=None):
     try:
         rule_schema.validate(rule)
     except jsonschema.ValidationError as e:
-        raise EAException("Invalid Rule file: %s\n%s" % (filename, e))
+        raise EAException("Invalid Rule file: %s\n%s" % (key, e))
 
     try:
         # Set all time based parameters
@@ -182,7 +164,7 @@ def load_options(rule, conf, filename, args=None):
     # Set defaults, copy defaults from config.yaml
     for key, val in base_config.items():
         rule.setdefault(key, val)
-    rule.setdefault('name', os.path.splitext(filename)[0])
+    rule.setdefault('name', os.path.splitext(key)[0])
     rule.setdefault('realert', datetime.timedelta(seconds=0))
     rule.setdefault('aggregation', datetime.timedelta(seconds=0))
     rule.setdefault('query_delay', datetime.timedelta(seconds=0))
@@ -410,12 +392,18 @@ def load_rules(args):
 
     # Make sure we have all required globals
     if required_globals - frozenset(conf.keys()):
-        raise EAException('%s must contain %s' % (filename, ', '.join(required_globals - frozenset(conf.keys()))))
+        raise EAException(
+            '{filename} must contain {key}'.format(
+                filename=filename, 
+                key=', '.join(required_globals - frozenset(conf.keys()))
+            )
+        )
 
     conf.setdefault('max_query_size', 10000)
     conf.setdefault('scroll_keepalive', '30s')
     conf.setdefault('disable_rules_on_error', True)
     conf.setdefault('scan_subdirectories', True)
+    conf.setdefault('rules_type', 'dir')
 
     # Convert run_every, buffer_time into a timedelta object
     try:
@@ -437,14 +425,14 @@ def load_rules(args):
 
     # Load each rule configuration file
     rules = []
-    rule_files = get_file_paths(conf, use_rule)
-    for rule_file in rule_files:
+
+    for key, value in yield_rules(conf, use_rule=use_rule):
         try:
-            rule = load_configuration(rule_file, conf, args)
+            rule = load_configuration(key, value, conf, args)            
             if rule['name'] in names:
                 raise EAException('Duplicate rule named %s' % (rule['name']))
         except EAException as e:
-            raise EAException('Error loading file %s: %s' % (rule_file, e))
+            raise EAException('Error loading file %s: %s' % (key, e))
 
         rules.append(rule)
         names.append(rule['name'])
@@ -453,10 +441,103 @@ def load_rules(args):
     return conf
 
 
-def get_rule_hashes(conf, use_rule=None):
+def parse_rule(key, value):
+    rule = {'rule_file': key}
+
+    while True:
+        '''
+        Special case for merging filters:
+        if both files specify a filter merge (AND) them
+        '''
+        if 'filter' in rule and 'filter' in value:
+            rule['filter'] = value['filter'] + rule['filter']
+
+        value.update(rule)
+        rule = value
+
+        if 'import' in rule:
+            # Find the path of the next file.
+            if os.path.isabs(rule['import']):
+                filename = rule['import']
+            else:
+                filename = os.path.join(
+                    os.path.dirname(filename), rule['import']
+                )
+            del(rule['import'])  # or we could go on forever!
+        else:
+            break
+
+    return rule
+
+
+def yield_api_rules(conf, use_rule=None):
+    if 'rules_api_host' not in conf:
+        raise EAException("'api' rule type requires 'rules_api_host' config")
+
+    rules_api_host = conf['rules_api_host']
+    
+    if 'rules_api_path' in conf:
+        rules_api_path = conf['rules_api_path']
+    else:
+        rules_api_path = ''
+
+    if 'rules_api_method' in conf:
+        rules_api_method = conf['rules_api_method'].strip().lower()
+    else:
+        rules_api_method = 'get'
+
+    if 'rules_api_port' in conf:
+        rules_api_port = int(conf['rules_api_port'])
+    else:
+        rules_api_port = 80
+
+    conn = HttpConnection(rules_api_host, port=rules_api_port)
+    if rules_api_method not in ["get", "post", "delete", "put"]:
+        raise EAException(
+            'rules_api_method "{method}" is invalid'.format(
+                method=rules_api_method
+            )
+        )
+
+    configs = getattr(conn, rules_api_method)(
+        rules_api_path
+    ).response.decode_json()
+    
+    for k, v in configs.items():
+        yield k, v
+
+
+def yield_dir_rules(conf, use_rule=None):
     rule_files = get_file_paths(conf, use_rule)
-    rule_mod_times = {}
+
     for rule_file in rule_files:
         with open(rule_file) as fh:
-            rule_mod_times[rule_file] = hashlib.sha1(fh.read()).digest()
+            try:
+                yield rule_file, yaml_loader(fh.read())        
+            except yaml.scanner.ScannerError as e:
+                raise EAException('Could not parse file %s: %s' % (rule_file, e))
+
+
+def yield_rules(conf, use_rule=None):
+    if conf['rules_type'] == "api":
+        rules = yield_api_rules(conf, use_rule=use_rule)
+    elif conf['rules_type'] == "dir":
+        rules = yield_dir_rules(conf, use_rule=use_rule)
+    else:
+        raise EAException(
+            "'{rules_type}' is an invalid_rules_type".format(
+                rules_type=rules_type
+            )
+        )
+
+    for k, v in rules:
+        yield k, parse_rule(k, v)
+
+
+def get_rule_hashes(conf, use_rule=None):
+    rule_mod_times = {}
+
+    for k, v in yield_rules(conf, use_rule=use_rule):
+        rule_mod_times[k] = hashlib.sha1(str(v)).digest()
+    
     return rule_mod_times
