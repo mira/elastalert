@@ -142,7 +142,7 @@ write_config_key "run_every" "$RUN_EVERY"
 write_config_key "buffer_time" "$BUFFER_TIME"
 write_config_key "es_host" "$ELASTICSEARCH_HOST"
 write_config_key "es_port" "$ELASTICSEARCH_PORT"
-write_config_key "writeback_index" "elastalert_status"
+write_config_key "writeback_index" "$ELASTALERT_INDEX"
 write_config_key "alert_time_limit" "$ALERT_TIME_LIMIT"
 
 write_config_key_if_exists "es_url_prefix" "ELASTICSEARCH_URL_PREFIX"

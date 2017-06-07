@@ -13,10 +13,12 @@ RUN python2.7 setup.py install
 ADD elastalert elastalert
 WORKDIR /elastalert
 ENV CONFIG_PATH /elastalert/config.yaml
-RUN elastalert-create-index &2> /dev/null
 
 ENV PYTHONPATH /elastalert
+ENV ELASTALERT_INDEX elastalert
 WORKDIR $PYTHONPATH
+ 
+RUN python2.7 create_index.py --index $ELASTALERT_INDEX --old-index ''
 
 ADD files /files
 
