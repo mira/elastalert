@@ -1,0 +1,29 @@
+{
+	"name": "Check Celery Health", 
+	"type": "flatline", 
+	"index": "logstash-*", 
+	"threshold": 4, 
+	"timeframe": {
+		"minutes": 5
+	},
+	"filter": [
+		{
+			"query": {
+				"wildcard": {
+					"log": "succeeded*"
+				}
+			}
+		}, 
+		{
+			"query": {
+				"wildcard": {
+					"tag": "kubernetes.var.log.containers.celery*"
+				}
+			}
+		}
+	], 
+	"alert": ["command"], 
+	"command": ["curl", "-X", "POST", "http://slack-alerting-service.mira/celery-worker"]
+}
+
+

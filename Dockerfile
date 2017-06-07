@@ -9,8 +9,6 @@ ADD setup.py setup.py
 
 RUN python2.7 -m pip install -r requirements.txt
 RUN python2.7 setup.py install
-RUN python2.7 -m pip install configparser==3.5.0
-RUN python2.7 -m pip install elasticsearch==1.7.0
 
 ADD elastalert elastalert
 WORKDIR /elastalert
