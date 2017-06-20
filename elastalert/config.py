@@ -320,20 +320,20 @@ def get_file_paths(conf, use_rule=None):
     if use_rule and os.path.isfile(use_rule):
         return [use_rule]
     rule_folder = conf['rules_folder']
-    rule_files = []
+    rule_keys = []
     if conf['scan_subdirectories']:
         for root, folders, files in os.walk(rule_folder):
             for filename in files:
                 if use_rule and use_rule != filename:
                     continue
                 if isyaml(filename):
-                    rule_files.append(os.path.join(root, filename))
+                    rule_keys.append(os.path.join(root, filename))
     else:
         for filename in os.listdir(rule_folder):
             fullpath = os.path.join(rule_folder, filename)
             if os.path.isfile(fullpath) and isyaml(filename):
-                rule_files.append(fullpath)
-    return rule_files
+                rule_keys.append(fullpath)
+    return rule_keys
 
 
 def load_alerts(rule, alert_field):
@@ -442,7 +442,7 @@ def load_rules(args):
 
 
 def parse_rule(key, value):
-    rule = {'rule_file': key}
+    rule = {'rule_key': key}
 
     while True:
         '''
@@ -500,7 +500,7 @@ def yield_api_rules(conf, use_rule=None):
         )
 
     configs = getattr(conn, rules_api_method)(
-        rules_api_path
+        rules_api_path, headers={'Connection':'close'}
     ).response.decode_json()
     
     for k, v in configs.items():
@@ -508,14 +508,14 @@ def yield_api_rules(conf, use_rule=None):
 
 
 def yield_dir_rules(conf, use_rule=None):
-    rule_files = get_file_paths(conf, use_rule)
+    rule_keys = get_file_paths(conf, use_rule)
 
-    for rule_file in rule_files:
-        with open(rule_file) as fh:
+    for rule_key in rule_keys:
+        with open(rule_key) as fh:
             try:
-                yield rule_file, yaml_loader(fh.read())        
+                yield rule_key, yaml_loader(fh.read())        
             except yaml.scanner.ScannerError as e:
-                raise EAException('Could not parse file %s: %s' % (rule_file, e))
+                raise EAException('Could not parse file %s: %s' % (rule_key, e))
 
 
 def yield_rules(conf, use_rule=None):
@@ -532,6 +532,14 @@ def yield_rules(conf, use_rule=None):
 
     for k, v in rules:
         yield k, parse_rule(k, v)
+
+
+def load_rule_configuration(key, conf, use_rule=None):
+    for rule_key, rule in yield_rules(conf, use_rule=use_rule):
+        if rule_key == key:
+            return load_configuration(key, rule, conf)
+
+    raise EAException("Unable to find rule with key: '{key}'".format(key=key))
 
 
 def get_rule_hashes(conf, use_rule=None):

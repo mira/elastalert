@@ -19,7 +19,7 @@ import kibana
 import yaml
 from alerts import DebugAlerter
 from config import get_rule_hashes
-from config import load_configuration
+from config import load_rule_configuration
 from config import load_rules
 from croniter import croniter
 from elasticsearch.exceptions import ElasticsearchException
@@ -903,30 +903,29 @@ class ElastAlerter():
         new_rule_hashes = get_rule_hashes(self.conf, self.args.rule)
 
         # Check each current rule for changes
-        for rule_file, hash_value in self.rule_hashes.iteritems():
-            if rule_file not in new_rule_hashes:
+        for rule_key, hash_value in self.rule_hashes.iteritems():
+            if rule_key not in new_rule_hashes:
                 # Rule file was deleted
-                elastalert_logger.info('Rule file %s not found, stopping rule execution' % (rule_file))
-                self.rules = [rule for rule in self.rules if rule['rule_file'] != rule_file]
+                elastalert_logger.info(
+                    'Rule file {key} not found, stopping rule execution'.format(
+                        key=rule_key
+                    )
+                )
+                self.rules = [
+                    rule for rule in self.rules if rule['rule_key'] != rule_key
+                ]
                 continue
-            if hash_value != new_rule_hashes[rule_file]:
+            if hash_value != new_rule_hashes[rule_key]:
                 # Rule file was changed, reload rule
                 try:
-                    new_rule = load_configuration(rule_file, self.conf)
+                    new_rule = load_rule_configuration(
+                        rule_key, self.conf, use_rule=self.args.rule
+                    )
                 except EAException as e:
-                    message = 'Could not load rule %s: %s' % (rule_file, e)
-                    self.handle_error(message)
-                    # Want to send email to address specified in the rule. Try and load the YAML to find it.
-                    with open(rule_file) as f:
-                        try:
-                            rule_yaml = yaml.load(f)
-                        except yaml.scanner.ScannerError:
-                            self.send_notification_email(exception=e)
-                            continue
-
-                    self.send_notification_email(exception=e, rule=rule_yaml)
+                    message = 'Could not load rule %s: %s' % (rule_key, e)
+                    self.handle_error(message)                
                     continue
-                elastalert_logger.info("Reloading configuration for rule %s" % (rule_file))
+                elastalert_logger.info("Reloading configuration for rule %s" % (rule_key))
 
                 # Re-enable if rule had been disabled
                 for disabled_rule in self.disabled_rules:
@@ -935,25 +934,27 @@ class ElastAlerter():
                         self.disabled_rules.remove(disabled_rule)
                         break
 
-                # Initialize the rule that matches rule_file
+                # Initialize the rule that matches rule_key
                 new_rule = self.init_rule(new_rule, False)
-                self.rules = [rule for rule in self.rules if rule['rule_file'] != rule_file]
+                self.rules = [rule for rule in self.rules if rule['rule_key'] != rule_key]
                 if new_rule:
                     self.rules.append(new_rule)
 
         # Load new rules
         if not self.args.rule:
-            for rule_file in set(new_rule_hashes.keys()) - set(self.rule_hashes.keys()):
+            for rule_key in set(new_rule_hashes.keys()) - set(self.rule_hashes.keys()):
                 try:
-                    new_rule = load_configuration(rule_file, self.conf)
+                    new_rule = load_rule_configuration(
+                        rule_key, self.conf, use_rule=self.args.rule
+                    )
                     if new_rule['name'] in [rule['name'] for rule in self.rules]:
                         raise EAException("A rule with the name %s already exists" % (new_rule['name']))
                 except EAException as e:
-                    self.handle_error('Could not load rule %s: %s' % (rule_file, e))
-                    self.send_notification_email(exception=e, rule_file=rule_file)
+                    self.handle_error('Could not load rule %s: %s' % (rule_key, e))
+                    self.send_notification_email(exception=e, rule_key=rule_key)
                     continue
                 if self.init_rule(new_rule):
-                    elastalert_logger.info('Loaded new rule %s' % (rule_file))
+                    elastalert_logger.info('Loaded new rule %s' % (rule_key))
                     self.rules.append(new_rule)
 
         self.rule_hashes = new_rule_hashes
@@ -1618,13 +1619,13 @@ class ElastAlerter():
         if self.notify_email:
             self.send_notification_email(exception=exception, rule=rule)
 
-    def send_notification_email(self, text='', exception=None, rule=None, subject=None, rule_file=None):
+    def send_notification_email(self, text='', exception=None, rule=None, subject=None, rule_key=None):
         email_body = text
         rule_name = None
         if rule:
             rule_name = rule['name']
-        elif rule_file:
-            rule_name = rule_file
+        elif rule_key:
+            rule_name = rule_key
         if exception and rule_name:
             if not subject:
                 subject = 'Uncaught exception in ElastAlert - %s' % (rule_name)

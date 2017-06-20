@@ -877,17 +877,17 @@ def test_kibana_dashboard(ea):
 def test_rule_changes(ea):
     ea.rule_hashes = {'rules/rule1.yaml': 'ABC',
                       'rules/rule2.yaml': 'DEF'}
-    ea.rules = [ea.init_rule(rule, True) for rule in [{'rule_file': 'rules/rule1.yaml', 'name': 'rule1', 'filter': []},
-                                                      {'rule_file': 'rules/rule2.yaml', 'name': 'rule2', 'filter': []}]]
+    ea.rules = [ea.init_rule(rule, True) for rule in [{'rule_key': 'rules/rule1.yaml', 'name': 'rule1', 'filter': []},
+                                                      {'rule_key': 'rules/rule2.yaml', 'name': 'rule2', 'filter': []}]]
     ea.rules[1]['processed_hits'] = ['save me']
     new_hashes = {'rules/rule1.yaml': 'ABC',
                   'rules/rule3.yaml': 'XXX',
                   'rules/rule2.yaml': '!@#$'}
 
     with mock.patch('elastalert.elastalert.get_rule_hashes') as mock_hashes:
-        with mock.patch('elastalert.elastalert.load_configuration') as mock_load:
-            mock_load.side_effect = [{'filter': [], 'name': 'rule2', 'rule_file': 'rules/rule2.yaml'},
-                                     {'filter': [], 'name': 'rule3', 'rule_file': 'rules/rule3.yaml'}]
+        with mock.patch('elastalert.elastalert.load_rule_configuration') as mock_load:
+            mock_load.side_effect = [{'filter': [], 'name': 'rule2', 'rule_key': 'rules/rule2.yaml'},
+                                     {'filter': [], 'name': 'rule3', 'rule_key': 'rules/rule3.yaml'}]
             mock_hashes.return_value = new_hashes
             ea.load_rule_changes()
 
@@ -906,12 +906,12 @@ def test_rule_changes(ea):
     new_hashes = copy.copy(new_hashes)
     new_hashes.update({'rules/rule4.yaml': 'asdf'})
     with mock.patch('elastalert.elastalert.get_rule_hashes') as mock_hashes:
-        with mock.patch('elastalert.elastalert.load_configuration') as mock_load:
+        with mock.patch('elastalert.elastalert.load_rule_configuration') as mock_load:
             with mock.patch.object(ea, 'send_notification_email') as mock_send:
-                mock_load.return_value = {'filter': [], 'name': 'rule3', 'new': 'stuff', 'rule_file': 'rules/rule4.yaml'}
+                mock_load.return_value = {'filter': [], 'name': 'rule3', 'new': 'stuff', 'rule_key': 'rules/rule4.yaml'}
                 mock_hashes.return_value = new_hashes
                 ea.load_rule_changes()
-                mock_send.assert_called_once_with(exception=mock.ANY, rule_file='rules/rule4.yaml')
+                mock_send.assert_called_once_with(exception=mock.ANY, rule_key='rules/rule4.yaml')
     assert len(ea.rules) == 3
     assert not any(['new' in rule for rule in ea.rules])
 
@@ -919,8 +919,8 @@ def test_rule_changes(ea):
     new_hashes = copy.copy(new_hashes)
     new_hashes['rules/rule4.yaml'] = 'qwerty'
     with mock.patch('elastalert.elastalert.get_rule_hashes') as mock_hashes:
-        with mock.patch('elastalert.elastalert.load_configuration') as mock_load:
-            mock_load.return_value = {'filter': [], 'name': 'rule4', 'new': 'stuff', 'rule_file': 'rules/rule4.yaml'}
+        with mock.patch('elastalert.elastalert.load_rule_configuration') as mock_load:
+            mock_load.return_value = {'filter': [], 'name': 'rule4', 'new': 'stuff', 'rule_key': 'rules/rule4.yaml'}
             mock_hashes.return_value = new_hashes
             ea.load_rule_changes()
     assert len(ea.rules) == 4

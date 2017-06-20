@@ -8,7 +8,7 @@ import pytest
 import elastalert.alerts
 import elastalert.ruletypes
 from elastalert.config import get_file_paths
-from elastalert.config import load_configuration
+from elastalert.config import load_rule_configuration
 from elastalert.config import load_modules
 from elastalert.config import load_options
 from elastalert.config import load_rules
@@ -54,7 +54,7 @@ def test_import_rules():
         # Test that type is imported
         with mock.patch('__builtin__.__import__') as mock_import:
             mock_import.return_value = elastalert.ruletypes
-            load_configuration('test_config', test_config)
+            load_rule_configuration('test_config', test_config)
         assert mock_import.call_args_list[0][0][0] == 'testing.test'
         assert mock_import.call_args_list[0][0][3] == ['RuleType']
 
@@ -64,7 +64,7 @@ def test_import_rules():
         test_rule_copy['alert'] = 'testing2.test2.Alerter'
         with mock.patch('__builtin__.__import__') as mock_import:
             mock_import.return_value = elastalert.alerts
-            load_configuration('test_config', test_config)
+            load_rule_configuration('test_config', test_config)
         assert mock_import.call_args_list[0][0][0] == 'testing2.test2'
         assert mock_import.call_args_list[0][0][3] == ['Alerter']
 
@@ -82,7 +82,7 @@ def test_import_import():
 
     with mock.patch('elastalert.config.yaml_loader') as mock_open:
         mock_open.side_effect = [import_rule, import_me]
-        rules = load_configuration('blah.yaml', test_config)
+        rules = load_rule_configuration('blah.yaml', test_config)
         assert mock_open.call_args_list[0][0] == ('blah.yaml',)
         assert mock_open.call_args_list[1][0] == ('importme.ymlt',)
         assert len(mock_open.call_args_list) == 2
@@ -105,7 +105,7 @@ def test_import_absolute_import():
 
     with mock.patch('elastalert.config.yaml_loader') as mock_open:
         mock_open.side_effect = [import_rule, import_me]
-        rules = load_configuration('blah.yaml', test_config)
+        rules = load_rule_configuration('blah.yaml', test_config)
         assert mock_open.call_args_list[0][0] == ('blah.yaml',)
         assert mock_open.call_args_list[1][0] == ('/importme.ymlt',)
         assert len(mock_open.call_args_list) == 2
@@ -130,7 +130,7 @@ def test_import_filter():
 
     with mock.patch('elastalert.config.yaml_loader') as mock_open:
         mock_open.side_effect = [import_rule, import_me]
-        rules = load_configuration('blah.yaml', test_config)
+        rules = load_rule_configuration('blah.yaml', test_config)
         assert rules['filter'] == [{'term': {'ratchet': 'clank'}}, {'term': {'key': 'value'}}]
 
 
@@ -255,11 +255,11 @@ def test_raises_on_bad_generate_kibana_filters():
         test_rule_copy['filter'] = good
         with mock.patch('elastalert.config.yaml_loader') as mock_open:
             mock_open.return_value = test_rule_copy
-            load_configuration('blah', test_config)
+            load_rule_configuration('blah', test_config)
             for bad in bad_filters:
                 test_rule_copy['filter'] = good + bad
                 with pytest.raises(EAException):
-                    load_configuration('blah', test_config)
+                    load_rule_configuration('blah', test_config)
 
 
 def test_get_file_paths_recursive():

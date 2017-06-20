@@ -27,8 +27,8 @@ function validate_key {
 }
 
 
-validate_key "ELASTICSEARCH_HOST"
-validate_key "ELASTICSEARCH_PORT"
+validate_key "ES_HOST"
+validate_key "ES_PORT"
 
 rm -f $CONFIG_PATH
 touch $CONFIG_PATH
@@ -140,14 +140,14 @@ fi
 
 write_config_key "run_every" "$RUN_EVERY"
 write_config_key "buffer_time" "$BUFFER_TIME"
-write_config_key "es_host" "$ELASTICSEARCH_HOST"
-write_config_key "es_port" "$ELASTICSEARCH_PORT"
-write_config_key "writeback_index" "$ELASTALERT_INDEX"
+write_config_key "es_host" "$ES_HOST"
+write_config_key "es_port" "$ES_PORT"
+write_config_key "writeback_index" "$ES_INDEX"
 write_config_key "alert_time_limit" "$ALERT_TIME_LIMIT"
 
-write_config_key_if_exists "es_url_prefix" "ELASTICSEARCH_URL_PREFIX"
-write_config_key_if_exists "use_ssl" "ELASTICSEARCH_SSL"
+write_config_key_if_exists "es_url_prefix" "ES_URL_PREFIX"
+write_config_key_if_exists "use_ssl" "ES_USE_SSL"
 write_config_key_if_exists "verify_certs" "VERIFY_TLS_CERTS"
-write_config_key_if_exists "es_send_get_body_as" "ELASTICSEARCH_HTTP_METHOD"
-write_config_key_if_exists "es_username" "ELASTICSEARCH_USERNAME"
-write_config_key_if_exists "es_password" "ELASTICSEARCH_PASSWORD"
+write_config_key_if_exists "es_send_get_body_as" "ES_HTTP_METHOD"
+write_config_key_if_exists "es_username" "ES_USERNAME"
+write_config_key_if_exists "es_password" "ES_PASSWORD"

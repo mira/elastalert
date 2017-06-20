@@ -15,9 +15,9 @@ WORKDIR /elastalert
 ENV CONFIG_PATH /elastalert/config.yaml
 
 ENV PYTHONPATH /elastalert
-ENV ELASTALERT_INDEX elastalert
+ENV ES_INDEX elastalert
 WORKDIR $PYTHONPATH
  
 ADD files /files
 
-ENTRYPOINT /files/generate_config.sh && python2.7 create_index.py --index $ELASTALERT_INDEX --old-index '' && python2.7 elastalert.py --verbose
+ENTRYPOINT /files/generate_config.sh && python2.7 create_index.py --index $ES_INDEX --old-index '' && python2.7 elastalert.py --verbose

@@ -1,24 +1,22 @@
 {
-	"name": "Check Decision Updates", 
-	"type": "flatline", 
+	"name": "Impression Integrity Violation", 
+	"type": "any", 
 	"index": "logstash-*", 
-	"threshold": 4,
-	"realert": 5, 
 	"timeframe": {
-		"minutes": 5
+		"minutes": 1
 	},
 	"filter": [
 		{
 			"query": {
 				"wildcard": {
-					"log": "succeeded*"
+					"tag": "kubernetes.var.log.containers.celery"
 				}
 			}
 		}, 
 		{
 			"query": {
 				"wildcard": {
-					"tag": "kubernetes.var.log.containers.celery*"
+					"log": "impressionintegrityviolation"
 				}
 			}
 		}
@@ -27,5 +25,3 @@
 	"slack_webhook_url": "https://hooks.slack.com/services/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",
 	"slack_username_override": "celery-bot"
 }
-
-

@@ -57,7 +57,7 @@ def ea():
               'processed_hits': {},
               'timestamp_field': '@timestamp',
               'match_enhancements': [],
-              'rule_file': 'blah.yaml',
+              'rule_key': 'blah.yaml',
               'max_query_size': 10000,
               'ts_to_dt': ts_to_dt,
               'dt_to_ts': dt_to_ts,
