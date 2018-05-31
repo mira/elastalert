@@ -6,14 +6,16 @@ import logging
 import os
 import sys
 
-import alerts
-import enhancements
 import jsonschema
-import ruletypes
 import yaml
 import yaml.scanner
-from opsgenie import OpsGenieAlerter
 from staticconf.loader import yaml_loader
+
+import alerts
+import enhancements
+from http import HttpConnection
+from opsgenie import OpsGenieAlerter
+import ruletypes
 from util import dt_to_ts
 from util import dt_to_ts_with_format
 from util import dt_to_unix
@@ -24,7 +26,6 @@ from util import ts_to_dt_with_format
 from util import unix_to_dt
 from util import unixms_to_dt
 
-from mira.protocols.http import HttpConnection
 
 
 # schema for rule yaml
@@ -71,6 +72,8 @@ alerts_mapping = {
     'command': alerts.CommandAlerter,
     'sns': alerts.SnsAlerter,
     'hipchat': alerts.HipChatAlerter,
+    'stride': alerts.StrideAlerter,
+    'ms_teams': alerts.MsTeamsAlerter,
     'slack': alerts.SlackAlerter,
     'pagerduty': alerts.PagerDutyAlerter,
     'exotel': alerts.ExotelAlerter,
@@ -79,7 +82,8 @@ alerts_mapping = {
     'telegram': alerts.TelegramAlerter,
     'gitter': alerts.GitterAlerter,
     'servicenow': alerts.ServiceNowAlerter,
-    'simple': alerts.SimplePostAlerter
+    'alerta': alerts.AlertaAlerter,
+    'post': alerts.HTTPPostAlerter
 }
 '''
 A partial ordering of alert types. Relative order will be preserved in the 
@@ -374,17 +378,8 @@ def load_alerts(rule, alert_field):
     return alert_field
 
 
-def load_rules(args):
-    """ Creates a conf dictionary for ElastAlerter. Loads the global
-    config file and then each rule found in rules_folder.
-
-    :param args: The parsed arguments to ElastAlert
-    :return: The global configuration, a dictionary.
-    """
-    names = []
-    filename = args.config
+def load_rules_configuration(filename):
     conf = yaml_loader(filename)
-    use_rule = args.rule
 
     for env_var, conf_var in env_settings.items():
         if env_var in os.environ:
@@ -422,8 +417,57 @@ def load_rules(args):
 
     global base_config
     base_config = copy.deepcopy(conf)
+    return conf
+
+
+def load_test_configuration(filename):
+    conf = yaml_loader(filename)
+
+    # Need to convert these parameters to datetime objects
+    for key in ['buffer_time', 'run_every', 'alert_time_limit', 'old_query_limit']:
+        if key in conf:
+            conf[key] = datetime.timedelta(**conf[key])
+
+    # Mock configuration. This specifies the base values for attributes, unless supplied otherwise.
+    conf_default = {
+        'rules_folder': 'rules',
+        'es_host': 'localhost',
+        'es_port': 14900,
+        'writeback_index': 'wb',
+        'max_query_size': 10000,
+        'alert_time_limit': datetime.timedelta(hours=24),
+        'old_query_limit': datetime.timedelta(weeks=1),
+        'run_every': datetime.timedelta(minutes=5),
+        'disable_rules_on_error': False,
+        'buffer_time': datetime.timedelta(minutes=45),
+        'scroll_keepalive': '30s'
+    }
+
+    for key in conf_default:
+        if key not in conf:
+            conf[key] = conf_default[key]
+
+    global base_config
+    base_config = copy.deepcopy(conf)
+    return conf
+
+
+def load_rules(args, is_test=False):
+    """ Creates a conf dictionary for ElastAlerter. Loads the global
+    config file and then each rule found in rules_folder.
+
+    :param args: The parsed arguments to ElastAlert
+    :return: The global configuration, a dictionary.
+    """
+
+    conf = load_rules_configuration(
+        args.config
+    ) if not is_test else load_test_rules_configuration(args.config)
+
+    use_rule = args.rule
 
     # Load each rule configuration file
+    names = []
     rules = []
 
     for key, value in yield_rules(conf, use_rule=use_rule):

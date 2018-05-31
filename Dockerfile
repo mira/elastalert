@@ -1,7 +1,5 @@
 FROM miraco/python:2.7.13
 
-RUN apt-get install -y curl
-
 WORKDIR /
 
 ADD requirements.txt requirements.txt

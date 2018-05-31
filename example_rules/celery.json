@@ -3,7 +3,9 @@
 	"type": "flatline", 
 	"index": "logstash-*", 
 	"threshold": 4,
-	"realert": 5, 
+	"realert": {
+		"minutes": 5
+	}, 
 	"timeframe": {
 		"minutes": 5
 	},

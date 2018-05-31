@@ -1,17 +1,21 @@
+SHELL := /bin/bash
+
+include envfile
+export
+
+.EXPORT_ALL_VARIABLES: text
+
 docker-hub-repo = miraco/elastalert
 docker-hub-repo-version = $(shell cat .docker-repo-version)
 docker-app = elastalert.mira
 docker-network = main
 
-
-docker-network:
-	make docker-build
+docker-network: docker-build
 ifeq ($(shell docker network inspect $(docker-network) 2> /dev/null | sed -n 1p), [])
 	docker network create $(docker-network)
 endif
 
-
-docker-clean:
+docker-stop:
 ifneq ($(shell docker ps -a -f name=$(docker-app) | sed -n 2p),)
 	docker stop $(docker-app)
 	docker rm $(docker-app)
@@ -20,22 +24,12 @@ endif
 docker-build:
 	docker build -t $(docker-hub-repo):$(docker-hub-repo-version) .
 
-docker-push:
-	make docker-build
+docker-push: docker-build
 	docker build -t $(docker-hub-repo):latest .
 	docker push $(docker-hub-repo):$(docker-hub-repo-version)
 	docker push $(docker-hub-repo):latest
 
-docker-run:
-	make docker-network
-	make docker-build
-	make docker-clean
-	docker run --name $(docker-app) -d $(docker-hub-repo):$(docker-hub-repo-version)
-
-docker-logs:
-	make docker-network
-	make docker-build
-	make docker-clean
+docker-run: docker-network docker-stop
 	docker run \
 		--name $(docker-app) \
 		--network $(docker-network) \
@@ -48,6 +42,16 @@ docker-logs:
 		-e RULES_API_PATH="apps/tester/configs" \
 		$(docker-hub-repo):$(docker-hub-repo-version)
 
-docker-bash:
-	make docker-run
+docker-logs: docker-run
+	docker logs -f $(docker-app)
+
+docker-bash: docker-run
 	docker exec -ti $(docker-app) /bin/bash
+
+clean:
+	rm -rf .tox
+	rm -rf elastalert.egg-info
+	rm -rf .cache
+
+test:
+	tox

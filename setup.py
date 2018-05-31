@@ -32,8 +32,9 @@ setup(
         'boto3>=1.4.4',
         'configparser>=3.5.0',
         'croniter>=0.3.16',
-        'elasticsearch',
+        'elasticsearch==6.1.1',
         'exotel>=0.1.3',
+        'envparse>=0.2.0',
         'jira>=1.0.10',
         'jsonschema>=2.6.0',
         'mock>=2.0.0',
@@ -44,6 +45,6 @@ setup(
         'simplejson>=3.10.0',
         'stomp.py>=4.1.17',
         'texttable>=0.8.8',
-        'twilio>=6.0.0,<6.1',
+        'twilio>=6.0.0,<6.1'
     ]
 )

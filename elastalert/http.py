@@ -2,12 +2,7 @@ import enum
 import json
 import xml.etree.ElementTree
 
-import pandas
 import requests
-
-from mira.util.log import get_logger
-
-log = get_logger(__name__)
 
 
 def parse_uri(uri):
@@ -76,9 +71,7 @@ class HttpConnection():
 		self.uri = None
 
 	def _clean_param(self, param):
-		if type(param) is pandas.Timestamp:
-			return param.strftime("%Y-%m-%d %H:%M:%S")
-		elif type(param) is list or type(param) is set:
+		if type(param) is list or type(param) is set:
 			return ",".join([str(item) for item in param])
 		else:
 			return param
@@ -88,7 +81,6 @@ class HttpConnection():
 		params = {k: self._clean_param(v) for k, v in params.items()}
 		self.set_uri(path)
 
-		log.info("GET: '{uri}'".format(uri=self.uri))
 		self.request = requests.get(self.uri, params=params, headers=headers)
 		return self
 
@@ -97,7 +89,6 @@ class HttpConnection():
 		headers['Content-Type'] = "application/octet-stream"
 		self.set_uri(path)
 
-		log.info("POST: '{uri}'".format(uri=self.uri))
 		self.request = requests.post(self.uri, data=data, headers=headers)
 		return self
 
@@ -107,7 +98,6 @@ class HttpConnection():
 			"Content-Type" not in headers else headers['Content-Type']
 		self.set_uri(path)
 
-		log.info("POST: '{uri}'".format(uri=self.uri))
 		self.request = requests.post(self.uri, data=data, headers=headers)
 		return self
 
@@ -115,7 +105,6 @@ class HttpConnection():
 		headers = headers or {}
 		self.set_uri(path)
 
-		log.info("DELETE: '{uri}'".format(uri=self.uri))
 		self.request = requests.delete(self.uri, data=data, headers=headers)
 		return self
 
@@ -123,7 +112,6 @@ class HttpConnection():
 		headers = headers or {}
 		self.set_uri(path)
 
-		log.info("PUT: '{uri}'".format(uri=self.uri))
 		self.request = requests.put(
 			self.uri, data=data, json=json, headers=headers
 		)
